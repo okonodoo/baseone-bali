@@ -1,0 +1,44 @@
+{
+  // Cloudflare Workers - Doğru Yapılandırma
+  // baseone-bali projesi için
+
+  "name": "baseone-bali",
+
+  // Build çıktısını işaret et
+  "main": "dist/index.js",
+
+  // Cloudflare uyumlu tarih
+  "compatibility_date": "2024-11-01",
+
+  // KRİTİK: Node.js built-in modülleri aktif et
+  // (path, fs, zlib, module, crypto, buffer vs. için şart)
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Ortam değişkenleri (production)
+  "vars": {
+    "NODE_ENV": "production"
+  },
+
+  // Gizli değişkenler için (wrangler secret put KEY ile ekle)
+  // DATABASE_URL, JWT_SECRET, OPENAI_API_KEY, XENDIT_SECRET_KEY vs.
+
+  // Assets klasörü (static dosyalar için)
+  "assets": {
+    "directory": "./dist/public",
+    "binding": "ASSETS"
+  },
+
+  // Ortam bazlı ayarlar
+  "env": {
+    "production": {
+      "name": "baseone-bali",
+      "compatibility_date": "2024-11-01",
+      "compatibility_flags": ["nodejs_compat"]
+    },
+    "staging": {
+      "name": "baseone-bali-staging",
+      "compatibility_date": "2024-11-01",
+      "compatibility_flags": ["nodejs_compat"]
+    }
+  }
+}

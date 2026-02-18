@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1771168757037,
+      "tag": "0000_moaning_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1771172279607,
+      "tag": "0001_silly_justice",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1771175831483,
+      "tag": "0002_needy_mole_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1771177388912,
+      "tag": "0003_watery_natasha_romanoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1771243295440,
+      "tag": "0004_faulty_prism",
+      "breakpoints": true
+    }
+  ]
+}

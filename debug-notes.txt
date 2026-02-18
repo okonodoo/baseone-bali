@@ -1,0 +1,9 @@
+CRITICAL BUG FOUND:
+Browser console error: "Invalid currency: usd. Your account currently supports these currencies: idr."
+
+The Stripe account ONLY supports IDR. The resolveCheckoutCurrency function returns "usd" for non-Indonesian users.
+This is the root cause of the "Unexpected token '<'" JSON error - Stripe rejects the request, 
+and the error response is HTML (not JSON), causing the parse error.
+
+FIX: Force all checkout sessions to use IDR currency since the Stripe account only supports IDR.
+Convert USD prices to IDR at checkout time.

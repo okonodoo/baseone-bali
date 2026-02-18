@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /partner-portal
+Disallow: /profile
+Disallow: /payment-success
+Disallow: /api/
+
+Sitemap: https://baseoneglobal.com/sitemap.xml
