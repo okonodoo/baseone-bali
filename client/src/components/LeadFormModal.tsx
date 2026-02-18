@@ -5,19 +5,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, Send, Loader2 } from "lucide-react";
 import { useTranslation } from "@/i18n";
 import { trpc } from "@/lib/trpc";
-
-const COUNTRIES = [
-  "Australia", "Austria", "Belgium", "Brazil", "Canada", "China", "Denmark",
-  "Finland", "France", "Germany", "India", "Indonesia", "Ireland", "Israel",
-  "Italy", "Japan", "Malaysia", "Netherlands", "New Zealand", "Norway",
-  "Poland", "Portugal", "Russia", "Saudi Arabia", "Singapore", "South Korea",
-  "Spain", "Sweden", "Switzerland", "Thailand", "Turkey", "UAE",
-  "United Kingdom", "United States", "Vietnam", "Other",
-];
+import { PhoneInput, CountrySelect } from "./CountrySelect";
 
 const SECTOR_OPTIONS = [
   "Restaurant & Cafe", "Villa Rental", "Digital Agency", "Wellness & Spa",
   "Import / Export", "Construction", "Education", "Crypto & Fintech",
+];
+
+const CURRENCIES = [
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "IDR", symbol: "Rp", name: "Indonesian Rupiah" },
+  { code: "TRY", symbol: "₺", name: "Turkish Lira" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+  { code: "RUB", symbol: "₽", name: "Russian Ruble" },
 ];
 
 interface LeadFormModalProps {
@@ -44,6 +46,7 @@ export default function LeadFormModal({
     phone: "",
     country: "",
     budget: prefillBudget,
+    currency: "USD",
     sector: prefillSector,
     notes: "",
   });
@@ -56,8 +59,14 @@ export default function LeadFormModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedCurrency = CURRENCIES.find(c => c.code === form.currency);
+    const budgetWithCurrency = form.budget
+      ? `${selectedCurrency?.symbol || "$"}${form.budget} ${form.currency}`
+      : "";
+
     mutation.mutate({
       ...form,
+      budget: budgetWithCurrency,
       source: type === "report" ? "investment_wizard" : "talk_to_expert",
       language: locale,
       ...(type === "report"
@@ -78,6 +87,7 @@ export default function LeadFormModal({
       phone: "",
       country: "",
       budget: prefillBudget,
+      currency: "USD",
       sector: prefillSector,
       notes: "",
     });
@@ -174,49 +184,50 @@ export default function LeadFormModal({
                     />
                   </div>
 
-                  {/* Phone */}
-                  <div>
-                    <label className="block text-xs font-mono text-[#6b6560] uppercase tracking-wider mb-1.5">
-                      {t.lead.phone} *
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      value={form.phone}
-                      onChange={(e) => handleChange("phone", e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-[#6b6560] focus:border-[#c5a059]/50 focus:ring-1 focus:ring-[#c5a059]/20 outline-none transition-all text-sm"
-                    />
-                  </div>
-
                   {/* Country */}
-                  <div>
-                    <label className="block text-xs font-mono text-[#6b6560] uppercase tracking-wider mb-1.5">
-                      {t.lead.country} *
-                    </label>
-                    <select
-                      required
-                      value={form.country}
-                      onChange={(e) => handleChange("country", e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:border-[#c5a059]/50 focus:ring-1 focus:ring-[#c5a059]/20 outline-none transition-all text-sm appearance-none"
-                    >
-                      <option value="" className="bg-[#141416]">{t.lead.selectCountry}</option>
-                      {COUNTRIES.map((c) => (
-                        <option key={c} value={c} className="bg-[#141416]">{c}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <CountrySelect
+                    value={form.country}
+                    onChange={(value) => handleChange("country", value)}
+                    label={t.lead.country}
+                    required
+                    placeholder={t.lead.selectCountry}
+                  />
+
+                  {/* Phone */}
+                  <PhoneInput
+                    value={form.phone}
+                    onChange={(value) => handleChange("phone", value)}
+                    label={t.lead.phone}
+                    required
+                    placeholder="5XXXXXXXXX"
+                    countryCode={form.country}
+                  />
 
                   {/* Budget (auto-filled) */}
                   <div>
                     <label className="block text-xs font-mono text-[#6b6560] uppercase tracking-wider mb-1.5">
                       {t.lead.budget}
                     </label>
-                    <input
-                      type="text"
-                      value={form.budget}
-                      onChange={(e) => handleChange("budget", e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[#c5a059] placeholder-[#6b6560] focus:border-[#c5a059]/50 focus:ring-1 focus:ring-[#c5a059]/20 outline-none transition-all text-sm"
-                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={form.currency}
+                        onChange={(e) => handleChange("currency", e.target.value)}
+                        className="w-[110px] shrink-0 px-2 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:border-[#c5a059]/50 focus:ring-1 focus:ring-[#c5a059]/20 outline-none transition-all"
+                      >
+                        {CURRENCIES.map((c) => (
+                          <option key={c.code} value={c.code} className="bg-[#141416]">
+                            {c.symbol} {c.code}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        value={form.budget}
+                        onChange={(e) => handleChange("budget", e.target.value)}
+                        placeholder="50000"
+                        className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-[#c5a059] placeholder-[#6b6560] focus:border-[#c5a059]/50 focus:ring-1 focus:ring-[#c5a059]/20 outline-none transition-all text-sm"
+                      />
+                    </div>
                   </div>
 
                   {/* Sector (auto-filled) */}
