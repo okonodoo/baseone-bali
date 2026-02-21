@@ -7,7 +7,7 @@
  *   - Xendit Invoice API provides hosted checkout page (redirect flow)
  *   - Webhook verifies x-callback-token header for security
  */
-import Xendit from "xendit-node";
+import { Xendit } from 'xendit-node';
 import type { Express, Request, Response } from "express";
 import { PRODUCTS, getXenditAmount, getDisplayPrice, type ProductKey } from "./xendit-products";
 import { updateUserTier, getUserById } from "./db";
