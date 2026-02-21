@@ -936,3 +936,117 @@ export async function deactivateOdooProduct(productId: number): Promise<{ succes
     return { success: false, error: message };
   }
 }
+// Bu fonksiyonu server/odoo.ts dosyasının SONUNA ekle
+// (dosyanın mevcut kodlarından sonra)
+
+/**
+ * Odoo kullanıcısına portal erişimi verir
+ * @param userId - Odoo user ID (integer)
+ * @returns Odoo API response
+ */
+export async function activatePortalAccess(userId: string | number) {
+  const ODOO_URL = process.env.ODOO_URL;
+  const ODOO_DB = process.env.ODOO_DB;
+  const ODOO_API_KEY = process.env.ODOO_API_KEY;
+
+  if (!ODOO_URL || !ODOO_DB || !ODOO_API_KEY) {
+    throw new Error('Odoo environment variables not configured');
+  }
+
+  try {
+    const response = await fetch(`${ODOO_URL}/jsonrpc`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          service: 'object',
+          method: 'execute_kw',
+          args: [
+            ODOO_DB,
+            parseInt(ODOO_API_KEY), // uid
+            ODOO_API_KEY,
+            'res.users',
+            'action_grant_portal_access',
+            [[parseInt(String(userId))]]
+          ]
+        },
+        id: Math.floor(Math.random() * 1000000)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Odoo API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`Odoo error: ${data.error.message || JSON.stringify(data.error)}`);
+    }
+
+    return {
+      success: true,
+      result: data.result,
+      message: 'Portal access granted successfully'
+    };
+
+  } catch (error) {
+    console.error('activatePortalAccess error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Alternatif: Eğer yukarıdaki çalışmazsa, bu versiyonu dene
+ * Odoo V19 JSON-2 API kullanır
+ */
+export async function activatePortalAccessV2(userId: string | number) {
+  const ODOO_URL = process.env.ODOO_URL;
+  const ODOO_API_KEY = process.env.ODOO_API_KEY;
+
+  if (!ODOO_URL || !ODOO_API_KEY) {
+    throw new Error('Odoo environment variables not configured');
+  }
+
+  try {
+    // Odoo V19+ JSON-2 endpoint
+    const response = await fetch(`${ODOO_URL}/json/2/res.users/action_grant_portal_access`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ODOO_API_KEY}`
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          ids: [parseInt(String(userId))]
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Odoo API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`Odoo error: ${data.error.message || JSON.stringify(data.error)}`);
+    }
+
+    return {
+      success: true,
+      result: data.result,
+      message: 'Portal access granted successfully'
+    };
+
+  } catch (error) {
+    console.error('activatePortalAccessV2 error:', error);
+    throw error;
+  }
+}
