@@ -1,9 +1,8 @@
 [build]
 builder = "NIXPACKS"
-# ÖNCE migration, SONRA build
-buildCommand = "pnpm db:push && pnpm run build"
+buildCommand = "pnpm run build"
 [deploy]
-startCommand = "pnpm start"
+startCommand = "pnpm db:push && pnpm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
