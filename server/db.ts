@@ -3,26 +3,15 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, properties, leads, blogPosts, vendorSubmissions, type InsertProperty, type InsertLead, type InsertBlogPost, type InsertVendorSubmission } from "../drizzle/schema";
 // server/db.ts (Önerilen Değişiklik)
 import { ENV } from './_core/env';
-
-export async function getDb() {
-  if (!_db && ENV.databaseUrl) { // Direkt ENV.databaseUrl kullan
-    try {
-      _db = drizzle(ENV.databaseUrl);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
-  }
-  return _db;
-}
 import type { SubscriptionTier } from "./xendit-products";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db && ENV.databaseUrl) { // Direkt ENV.databaseUrl kullan
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // @ts-ignore
+      _db = drizzle(ENV.databaseUrl);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
