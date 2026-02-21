@@ -47,7 +47,7 @@ export default function Login() {
       if (turnstileRef.current && window.turnstile && !turnstileWidgetId.current) {
         try {
           turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
-            sitekey: "0x4AAAAAAAzkDlNbsMtUAdYG",
+  sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
             callback: (token: string) => setTurnstileToken(token),
             "error-callback": () => setTurnstileToken(null),
             theme: "dark",
