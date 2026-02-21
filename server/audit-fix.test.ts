@@ -67,6 +67,28 @@ describe("Audit Fix: TEST 4 - Xendit Webhook + Odoo Membership Sync", () => {
     const { updatePartnerMembershipLevel } = await import("./odoo");
     expect(typeof updatePartnerMembershipLevel).toBe("function");
   });
+
+  it("should create invoice from sale order via _create_invoices", () => {
+    expect(odooSource).toContain("_create_invoices");
+    expect(odooSource).toContain("Invoice created");
+  });
+
+  it("should post invoice via action_post", () => {
+    expect(odooSource).toContain('"account.move", "action_post"');
+    expect(odooSource).toContain("Invoice");
+    expect(odooSource).toContain("posted");
+  });
+
+  it("should register payment via account.payment.register wizard", () => {
+    expect(odooSource).toContain("account.payment.register");
+    expect(odooSource).toContain("action_create_payments");
+    expect(odooSource).toContain("Payment registered");
+  });
+
+  it("should find bank journal for payment", () => {
+    expect(odooSource).toContain('"type", "=", "bank"');
+    expect(odooSource).toContain("account.journal");
+  });
 });
 
 describe("Audit Fix: TEST 9 - VGR Pipeline (Live Odoo)", { timeout: 30000 }, () => {

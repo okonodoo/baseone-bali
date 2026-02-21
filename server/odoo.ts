@@ -610,101 +610,11 @@ export async function syncOdooContact(data: ContactData): Promise<{ success: boo
       console.log(`[Odoo] Contact created: ${data.email} — ID ${partnerId}`);
     }
 
-    // Create portal user if not exists
-    await createOdooPortalUser(config, uid, partnerId, data.email).catch((e) =>
-      console.warn(`[Odoo] Failed to create portal user for ${data.email}:`, e)
-    );
-
     return { success: true, partnerId };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[Odoo] Failed to sync contact:", message);
     return { success: false, error: message };
-  }
-}
-
-/**
- * Activate portal access for existing user.
- * Use this to grant portal access to users who were created before portal functionality was added.
- */
-export async function activatePortalAccess(email: string): Promise<{ success: boolean; error?: string }> {
-  const config = getOdooConfig();
-  if (!isConfigured(config)) {
-    return { success: false, error: "Odoo not configured" };
-  }
-
-  try {
-    const uid = await authenticate(config);
-
-    // Find partner by email
-    const partners = await executeKw(config, uid, "res.partner", "search", [[["email", "=", email]]], { limit: 1 });
-    if (!partners || partners.length === 0) {
-      return { success: false, error: "Partner not found" };
-    }
-
-    const partnerId = partners[0];
-    await createOdooPortalUser(config, uid, partnerId, email);
-
-    return { success: true };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return { success: false, error: message };
-  }
-}
-
-/**
- * Create portal user in Odoo for customer self-service access.
- * This allows customers to login to Odoo portal and view their orders, invoices, etc.
- */
-async function createOdooPortalUser(config: OdooConfig, uid: number, partnerId: number, email: string): Promise<void> {
-  try {
-    // Check if user already exists
-    const existingUsers = await executeKw(config, uid, "res.users", "search", [[["login", "=", email]]], { limit: 1 });
-
-    if (existingUsers && existingUsers.length > 0) {
-      console.log(`[Odoo] Portal user already exists for ${email}`);
-      return;
-    }
-
-    // Find portal group ID (base.group_portal)
-    const portalGroups = await executeKw(config, uid, "res.groups", "search", [
-      [["category_id.name", "=", "User types"], ["name", "=", "Portal"]]
-    ], { limit: 1 });
-
-    if (!portalGroups || portalGroups.length === 0) {
-      console.warn("[Odoo] Portal group not found, trying alternative search");
-      const altPortalGroups = await executeKw(config, uid, "res.groups", "search", [
-        [["name", "ilike", "portal"]]
-      ], { limit: 1 });
-
-      if (!altPortalGroups || altPortalGroups.length === 0) {
-        throw new Error("Portal group not found in Odoo");
-      }
-      portalGroups[0] = altPortalGroups[0];
-    }
-
-    const portalGroupId = portalGroups[0];
-
-    // Generate a random password (user should reset via "Forgot Password")
-    const tempPassword = Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
-
-    // Create portal user
-    const userValues = {
-      name: email.split('@')[0], // Use email prefix as name fallback
-      login: email,
-      email: email,
-      partner_id: partnerId,
-      groups_id: [[6, 0, [portalGroupId]]], // Set only portal group
-      password: tempPassword,
-      active: true,
-    };
-
-    await executeKw(config, uid, "res.users", "create", [[userValues]]);
-    console.log(`[Odoo] Portal user created: ${email} (partner ID: ${partnerId})`);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[Odoo] Failed to create portal user for ${email}:`, message);
-    throw error;
   }
 }
 
@@ -746,6 +656,69 @@ async function findOrCreateProduct(config: OdooConfig, uid: number, productName:
   }
 
   throw new Error(`Failed to find product.product for template ${templateId}`);
+}
+
+/**
+ * Create an invoice from a confirmed sale order, post it, and register payment.
+ * Flow: sale.order._create_invoices() → account.move.action_post() → account.payment.register wizard
+ * This ensures the full accounting cycle is completed in Odoo.
+ */
+async function createInvoiceAndRegisterPayment(
+  config: OdooConfig,
+  uid: number,
+  orderId: number,
+  amount: number,
+  email: string,
+  tier: string
+): Promise<void> {
+  // Step 1: Create invoice from the confirmed sale order
+  const invoiceIds = await executeKw(config, uid, "sale.order", "_create_invoices", [[orderId]]);
+  if (!invoiceIds || !Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    console.warn(`[Odoo] No invoice created for SO ${orderId}`);
+    return;
+  }
+  const invoiceId = invoiceIds[0];
+  console.log(`[Odoo] Invoice created: ID ${invoiceId} from SO ${orderId}`);
+
+  // Step 2: Post the invoice (draft → posted)
+  await executeKw(config, uid, "account.move", "action_post", [[invoiceId]]);
+  console.log(`[Odoo] Invoice ${invoiceId} posted`);
+
+  // Step 3: Find a bank journal for payment registration
+  const bankJournals = await executeKw(
+    config, uid, "account.journal", "search_read",
+    [[["type", "=", "bank"]]],
+    { fields: ["id", "name"], limit: 1 }
+  );
+  if (!bankJournals || bankJournals.length === 0) {
+    console.warn(`[Odoo] No bank journal found — skipping payment registration for invoice ${invoiceId}`);
+    return;
+  }
+  const bankJournalId = bankJournals[0].id;
+
+  // Step 4: Create payment registration wizard with invoice context
+  const wizardContext = {
+    active_model: "account.move",
+    active_ids: [invoiceId],
+  };
+
+  const wizardId = await executeKw(
+    config, uid, "account.payment.register", "create",
+    [{
+      journal_id: bankJournalId,
+      amount: amount,
+    }],
+    { context: wizardContext }
+  );
+  console.log(`[Odoo] Payment wizard created: ID ${wizardId} for invoice ${invoiceId}`);
+
+  // Step 5: Execute the payment wizard → creates account.payment, posts & reconciles
+  await executeKw(
+    config, uid, "account.payment.register", "action_create_payments",
+    [[wizardId]],
+    { context: wizardContext }
+  );
+  console.log(`[Odoo] Payment registered for invoice ${invoiceId} (SO ${orderId}, ${tier}, ${email})`);
 }
 
 /**
@@ -799,16 +772,20 @@ export async function createOdooSaleOrder(data: {
       console.warn(`[Odoo] Sale order created but confirmation failed: ID ${orderId}`, confirmErr);
     }
 
-    // Mark sale order as paid by creating a payment
+    // Tag the sale order note
     try {
-      // Use _get_invoiced to create invoice, then register payment
-      // For simplicity, we tag the order note as "Paid via Xendit"
       await executeKw(config, uid, "sale.order", "write", [[orderId], {
         note: `Paid via Xendit — ${data.tier.toUpperCase()} membership`,
       }]);
-      console.log(`[Odoo] Sale order ${orderId} marked as paid`);
-    } catch (paidErr) {
-      console.warn(`[Odoo] Could not mark sale order as paid:`, paidErr);
+    } catch (noteErr) {
+      console.warn(`[Odoo] Could not update sale order note:`, noteErr);
+    }
+
+    // Create invoice from confirmed sale order, post it, and register payment
+    try {
+      await createInvoiceAndRegisterPayment(config, uid, orderId, membership.price, data.email, data.tier);
+    } catch (invoiceErr) {
+      console.warn(`[Odoo] Invoice/payment automation failed for SO ${orderId}:`, invoiceErr);
     }
 
     // Update partner's membership level
@@ -833,7 +810,7 @@ export async function createOdooSaleOrder(data: {
 
 /**
  * Update a partner's x_membership_level in Odoo.
- * Called after Stripe payment to sync membership status.
+ * Called after Xendit payment to sync membership status.
  */
 export async function updatePartnerMembershipLevel(
   email: string,
