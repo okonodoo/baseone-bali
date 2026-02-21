@@ -286,6 +286,109 @@ Döviz kuru ve fiyat cache'i process memory'de tutuluyor (`_cachedRate`, `_produ
 
 ---
 
+## 8. Ek Güvenlik ve Kalite Sorunları
+
+### 8.1 — `atob()` Try/Catch Olmadan Kullanılıyor
+**Dosya:** `server/_core/sdk.ts:42`
+**Önem:** Orta
+
+```ts
+private decodeState(state: string): string {
+  const redirectUri = atob(state);  // throw, yakalanmıyor
+  return redirectUri;
+}
+```
+
+Geçersiz bir OAuth `state` parametresi geldiğinde sunucu crash'leyebilir. Try/catch ile sarılmalı.
+
+---
+
+### 8.2 — `@ts-ignore` ile DB Bağlantısı
+**Dosya:** `server/db.ts:13`
+**Önem:** Düşük
+
+```ts
+// @ts-ignore
+_db = drizzle(ENV.databaseUrl);
+```
+
+TypeScript hatasını görmezden gelerek tip güvenliği devre dışı bırakılıyor. Drizzle'ın doğru bağlantı fonksiyonu kullanılmalı.
+
+---
+
+### 8.3 — Sessiz `/* ok */` Catch Bloğu
+**Dosya:** `server/odoo.ts:307`
+**Önem:** Orta
+
+```ts
+try {
+  await executeKw(config, uid, 'sale.order', 'action_confirm', [[orderId]]);
+} catch { /* ok */ }  // Sipariş onayı sessizce başarısız olabilir!
+```
+
+Satış siparişi onayı başarısız olsa bile hiçbir loglama yok. Odoo'da onaylanmamış sipariş kalabilir.
+
+---
+
+### 8.4 — Railway'de Her Restart'ta Migration Çalışıyor
+**Dosya:** `railway.toml`
+**Önem:** Orta
+
+```toml
+startCommand = "pnpm db:push && pnpm start"
+```
+
+`db:push` her server restart'ında çalışıyor. Migration başarısız olursa uygulama açılmıyor. Production'da `db:push` yerine `db:migrate` (idempotent) kullanılmalı ve migration ayrı bir adım olmalı.
+
+---
+
+### 8.5 — Health Check Gerçek Bağımlılıkları Kontrol Etmiyor
+**Dosya:** `server/index.ts:46`
+**Önem:** Düşük
+
+```ts
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok" });  // DB veya Odoo down olsa bile "ok"
+});
+```
+
+Railway health check daima `ok` döndürüyor. Database, Xendit ve Odoo bağlantıları kontrol edilmiyor.
+
+---
+
+### 8.6 — Loglarda PII (Kişisel Veri) Sızıntısı
+**Dosya:** `server/xendit.ts:47`, `server/odoo.ts:213`, `server/routers/auth.ts`
+**Önem:** Orta (GDPR riski)
+
+```ts
+console.log(`[Xendit] IDR checkout for ${opts.userEmail} — rate: ...`);
+console.log(`[Odoo] Set affiliate referral ${affiliateCode} on ...`);
+```
+
+E-posta adresleri, affiliate kodları ve kullanıcı bilgileri log'lara yazılıyor. GDPR kapsamında kişisel veri log'larda tutulmamalı.
+
+---
+
+### 8.7 — Request Timeout Yok
+**Dosya:** `server/index.ts`, `server/_core/index.ts`
+**Önem:** Orta
+
+Odoo veya Xendit API'leri yavaş yanıt verdiğinde istek sonsuza kadar bekleyebilir. Global bir `server.timeout` veya `express-timeout` middleware eksik.
+
+---
+
+### 8.8 — Dependabot Güvenlik Açıkları
+**Kaynak:** GitHub Dependabot (push sırasında uyarı)
+
+GitHub Dependabot repository'de **6 bağımlılık güvenlik açığı** tespit etti:
+- 2 Kritik
+- 2 Yüksek
+- 2 Orta
+
+`pnpm audit` çalıştırılarak etkilenen paketler belirlenmeli ve güncellenmeli.
+
+---
+
 ## Özet Tablosu
 
 | # | Sorun | Dosya | Önem |
@@ -308,3 +411,11 @@ Döviz kuru ve fiyat cache'i process memory'de tutuluyor (`_cachedRate`, `_produ
 | 5 | Kritik hatalar sessizce yutulуyor | `routers.ts`, `xendit.ts` | 🟠 Orta |
 | 6.2 | In-memory cache, multi-instance'da tutarsız | `odoo.ts`, `exchange-rate.ts` | 🟠 Orta |
 | 7 | Frontend ve API entegrasyon testleri eksik | — | 🟠 Orta |
+| 8.1 | `atob()` try/catch olmadan, OAuth crash riski | `sdk.ts:42` | 🟠 Orta |
+| 8.2 | `@ts-ignore` ile DB bağlantısı | `db.ts:13` | 🟡 Düşük |
+| 8.3 | `/* ok */` sessiz catch, sipariş onayı kaybolabilir | `odoo.ts:307` | 🟠 Orta |
+| 8.4 | Railway her restart'ta migration çalıştırıyor | `railway.toml` | 🟠 Orta |
+| 8.5 | Health check gerçek bağımlılıkları kontrol etmiyor | `server/index.ts:46` | 🟡 Düşük |
+| 8.6 | Loglarda PII sızıntısı (GDPR riski) | `xendit.ts`, `odoo.ts` | 🟠 Orta |
+| 8.7 | Request timeout yok | Server config | 🟠 Orta |
+| 8.8 | 6 Dependabot güvenlik açığı | `package.json` | 🔴 Yüksek |
